@@ -4,20 +4,38 @@ import { getOctokit } from "./helpers/github";
 import { shouldContinue } from "./helpers/init-check";
 import { getOwnerRepo } from "./helpers/secrets";
 
+export const parseURIToPackagePath = (package_str: string | undefined) => {
+  if (!package_str || package_str[0] == "@") {
+    return package_str;
+  }
+
+  // extracts relevant from repo/relevant#branch@version
+  const parser = /(?:.*\/)?([^@#]+)(?:#.*)?(?:@.*)?/g;
+  const groups = parser.exec(package_str);
+  if (groups && groups.length == 2) {
+    return groups[1];
+  }
+
+  // TODO: Parse other types of URI.
+
+  return package_str;
+};
+
 export const generateSite = async () => {
   if (!(await shouldContinue())) return;
   const [owner, repo] = getOwnerRepo();
   const config = await getConfig();
   if (config.skipGeneratingWebsite) return;
-  const sitePackage = config.customStatusWebsitePackage || "@upptime/status-page";
+  const sitePackageURI = config.customStatusWebsitePackage || "@upptime/status-page";
+  const sitePackage = parseURIToPackagePath(sitePackageURI);
   const octokit = await getOctokit();
   const repoDetails = await octokit.repos.get({ owner, repo });
   const siteDir = "site";
-  
+
   /* Configure shelljs to fail on failure */
-  var sh = require('shelljs');
+  var sh = require("shelljs");
   sh.config.fatal = true;
-  
+
   mkdir(siteDir);
   cd(siteDir);
   /**
@@ -32,7 +50,7 @@ export const generateSite = async () => {
   }
   exec("npm init -y");
   config.repo;
-  exec(`npm i ${sitePackage}`);
+  exec(`npm i ${sitePackageURI}`);
   cp("-r", `node_modules/${sitePackage}/*`, ".");
   exec("npm i");
   exec("npm run export");
